@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Terraria Valentine</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: #1a0a2e;
+  display: flex; justify-content: center; align-items: center;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 2px solid #4a2060;
+  border-radius: 4px;
+  box-shadow: 0 0 40px rgba(255, 105, 180, 0.3);
+}
+
+/* Mobile controls */
+#mobile-controls {
+  display: none;
+  position: fixed;
+  bottom: 12px;
+  left: 0; right: 0;
+  z-index: 100;
+  padding: 0 10px;
+}
+.game-btn {
+  position: absolute;
+  bottom: 0;
+  width: 38%;
+  height: 56px;
+  font: bold 16px 'Courier New', monospace;
+  letter-spacing: 2px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-radius: 10px;
+  color: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.game-btn:active { transform: scale(0.95); }
+#btn-jump {
+  left: 4%;
+  background: rgba(30,136,229,0.45);
+  border-color: rgba(30,136,229,0.6);
+}
+#btn-attack {
+  right: 4%;
+  background: rgba(229,57,53,0.45);
+  border-color: rgba(229,57,53,0.6);
+}
+
+/* Victory choice buttons */
+#victory-options {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  text-align: center;
+  gap: 12px;
+}
+#victory-options.show {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.victory-btn {
+  display: block;
+  width: 280px;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font: bold 15px 'Courier New', monospace;
+  letter-spacing: 1px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.victory-btn:active { transform: scale(0.96); }
+#btn-send-msg {
+  background: linear-gradient(135deg, #ff1744, #e91e63);
+  box-shadow: 0 0 20px rgba(255,23,68,0.4);
+}
+/* Valentine message form */
+#msg-overlay {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 200;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(26,10,46,0.97), rgba(26,10,46,0.85));
+  border-top: 2px solid #ff69b4;
+}
+#msg-overlay.show { display: flex; }
+#msg-form {
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+#msg-form h2 {
+  font: bold 18px 'Courier New', monospace;
+  color: #ff69b4;
+  margin-bottom: 6px;
+}
+#msg-form .subtitle {
+  font: 12px 'Courier New', monospace;
+  color: #ffb6c1;
+  margin-bottom: 14px;
+}
+#msg-form input {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  margin-bottom: 10px;
+  border: 2px solid #4a2060;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font: 14px 'Courier New', monospace;
+  outline: none;
+}
+#msg-form input:focus { border-color: #ff69b4; }
+#msg-form input::placeholder { color: rgba(255,255,255,0.35); }
+#send-btn {
+  width: 100%;
+  padding: 13px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ff1744, #e91e63);
+  color: #fff;
+  font: bold 15px 'Courier New', monospace;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+#send-btn:active { transform: scale(0.97); }
+#msg-back {
+  display: inline-block;
+  margin-top: 10px;
+  color: rgba(255,255,255,0.5);
+  font: 12px 'Courier New', monospace;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+#msg-back:hover { color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Mobile on-screen controls (shown during gameplay on touch devices) -->
+<div id="mobile-controls">
+  <button class="game-btn" id="btn-jump">JUMP</button>
+  <button class="game-btn" id="btn-attack">ATTACK</button>
+</div>
+
+<!-- Victory choice buttons -->
+<div id="victory-options">
+  <button class="victory-btn" id="btn-send-msg">Send a Valentine Message</button>
+</div>
+
+<!-- Valentine message form (slides up from bottom) -->
+<div id="msg-overlay">
+  <div id="msg-form">
+    <h2>Send a Valentine!</h2>
+    <p class="subtitle">Type your P.S. and we'll open your messages app</p>
+    <input type="text" id="ps-msg" placeholder="Your P.S. message..." autocomplete="off">
+    <button id="send-btn">Open Messages</button>
+    <button id="msg-back">back</button>
+  </div>
+</div>
+<script>
+'use strict';
+
+// ==================== SETUP ====================
+const C = document.getElementById('c');
+const $ = C.getContext('2d');
+const W = 800, H = 400;
+C.width = W; C.height = H;
+$.imageSmoothingEnabled = false;
+
+function resize() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H) * 0.95;
+  C.style.width = (W * s) + 'px';
+  C.style.height = (H * s) + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ==================== CONSTANTS ====================
+const PS = 3;
+const GY = 320;
+const GRAV = 0.6;
+const JVEL = -12.5;
+const MAXG = 20;
+const PH = 16 * PS;
+const TILE = 8 * PS;
+const ATK_DUR = 18;
+const ATK_CD = 12;
+
+// ==================== COLORS ====================
+const COL = {
+  skinBoy: '#C68642', skinBoyS: '#A0652F',
+  hair: '#1C1008', hairH: '#3D2B1F',
+  shirt: '#E53935', shirtD: '#C62828',
+  pants: '#1565C0', pantsD: '#0D47A1',
+  shoes: '#5D4037',
+  skinGirl: '#D4A574', skinGirlS: '#B8895A',
+  gHair: '#0A0A0A', gHairH: '#1A1A2E',
+  gShirt: '#1E88E5', gShirtD: '#1565C0',
+  gPants: '#424242', gShoes: '#5D4037',
+  slime: '#FF6B9D', slimeD: '#E91E63', slimeH: '#FF8EB3',
+  bat: '#FF69B4', batD: '#C2185B', batW: '#FFB6C1',
+  zombie: '#8BC34A', zombieD: '#689F38', zombieS: '#795548',
+  grass: '#5B8C32', grassH: '#7EC850',
+  dirt: '#8B6914', dirtD: '#6B4F12', dirtH: '#A07828',
+  hRed: '#FF1744', hPink: '#FF5252', hDark: '#D50000',
+  hOutline: '#880E4F', hEmpty: '#37474F',
+  white: '#FFF', black: '#000',
+};
+
+// ==================== HEART PIXEL MAP ====================
+const HEART = [
+  [0,1,1,0,1,1,0],
+  [1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1],
+  [0,1,1,1,1,1,0],
+  [0,0,1,1,1,0,0],
+  [0,0,0,1,0,0,0],
+];
+
+// ==================== GAME STATE ====================
+let state = 'title';
+let speed = 3;
+let scroll = 0;
+let gems = 0;
+let frame = 0;
+let shakeX = 0, shakeY = 0;
+let shakeDur = 0;
+let winTimer = 0;
+let deathTimer = 0;
+let meterPulse = 0;
+let titleBlink = 0;
+
+let player = null;
+let enemies = [];
+let heartGems = [];
+let particles = [];
+
+let enemyTimer = 120;
+let gemTimer = 80;
+
+// ==================== INPUT ====================
+let keys = {};
+let jumpBtn = false;
+let atkBtn = false;
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  // Don't intercept keys when typing in an input field
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  keys[e.code] = true;
+  if (['Space','ArrowUp','KeyW'].includes(e.code)) { jumpBtn = true; e.preventDefault(); }
+  if (e.code === 'KeyX') { atkBtn = true; e.preventDefault(); }
+  if (e.code === 'Space' && state !== 'playing' && state !== 'victory') {
+    handleStart();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Detect mobile/touch device
+const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+// Canvas touch: only for starting/restarting (mobile buttons handle gameplay)
+C.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (state !== 'playing') handleStart();
+}, { passive: false });
+C.addEventListener('touchend', e => { e.preventDefault(); }, { passive: false });
+
+// Mouse click: attack during gameplay, start otherwise
+C.addEventListener('mousedown', e => {
+  if (state === 'playing') { atkBtn = true; return; }
+  handleStart();
+});
+
+function handleStart() {
+  if (state === 'title' || state === 'gameover') startGame();
+  // Victory restart handled by HTML buttons only
+}
+
+// ===== MOBILE CONTROLS =====
+const mobileCtrlsEl = document.getElementById('mobile-controls');
+const btnJumpEl = document.getElementById('btn-jump');
+const btnAtkEl = document.getElementById('btn-attack');
+
+if (isMobile) {
+  btnJumpEl.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    jumpBtn = true;
+    if (state !== 'playing') handleStart();
+  }, { passive: false });
+
+  btnAtkEl.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    atkBtn = true;
+  }, { passive: false });
+}
+
+function showMobileControls(show) {
+  if (!isMobile) return;
+  mobileCtrlsEl.style.display = show ? 'block' : 'none';
+}
+
+// ===== VICTORY OPTIONS & VALENTINE MESSAGE =====
+const victoryOpts = document.getElementById('victory-options');
+const msgOverlay = document.getElementById('msg-overlay');
+const btnSendMsg = document.getElementById('btn-send-msg');
+const sendBtn = document.getElementById('send-btn');
+const msgBack = document.getElementById('msg-back');
+
+function showVictoryOptions() {
+  victoryOpts.classList.add('show');
+}
+function hideVictoryOptions() {
+  victoryOpts.classList.remove('show');
+}
+function showMsgOverlay() {
+  msgOverlay.classList.add('show');
+}
+function hideMsgOverlay() {
+  msgOverlay.classList.remove('show');
+}
+function hideAllOverlays() {
+  hideVictoryOptions();
+  hideMsgOverlay();
+}
+
+btnSendMsg.addEventListener('click', () => {
+  hideVictoryOptions();
+  showMsgOverlay();
+});
+
+msgBack.addEventListener('click', () => {
+  hideMsgOverlay();
+  showVictoryOptions();
+});
+
+sendBtn.addEventListener('click', () => {
+  const ps = document.getElementById('ps-msg').value || '';
+  const body = '\uD83D\uDC96 Valentine Saved! \uD83D\uDC96\n\u2728 Hearts gathered, danger shattered \u2728\n\uD83C\uDF39 Happy Valentine\'s Day! \uD83C\uDF39\n\nP.S ' + ps;
+  window.location.href = 'sms:?&body=' + encodeURIComponent(body);
+});
+
+// ==================== UTILITIES ====================
+function px(n) { return n * PS; }
+function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+function easeOut(t) { return 1 - (1 - t) * (1 - t); }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2; }
+function rng(seed) { let x = Math.sin(seed * 127.1) * 43758.5453; return x - Math.floor(x); }
+
+function aabb(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function drawText(text, x, y, size, color, align) {
+  $.textAlign = align || 'center';
+  $.textBaseline = 'middle';
+  $.font = `bold ${size}px "Courier New", monospace`;
+  $.fillStyle = '#000';
+  $.fillText(text, x + 2, y + 2);
+  $.fillStyle = color || '#FFF';
+  $.fillText(text, x, y);
+}
+
+function drawTextOutline(text, x, y, size, color, outline, align) {
+  $.textAlign = align || 'center';
+  $.textBaseline = 'middle';
+  $.font = `bold ${size}px "Courier New", monospace`;
+  $.strokeStyle = outline || '#000';
+  $.lineWidth = 4;
+  $.strokeText(text, x, y);
+  $.fillStyle = color || '#FFF';
+  $.fillText(text, x, y);
+}
+
+// ==================== PARTICLES ====================
+function spawnParticles(x, y, color, count, spread, life) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * spread,
+      vy: (Math.random() - 0.8) * spread,
+      color,
+      life: life || 30 + Math.random() * 20,
+      maxLife: life || 30 + Math.random() * 20,
+      size: PS * (1 + Math.random()),
+    });
+  }
+}
+
+function spawnSparkle(x, y) {
+  for (let i = 0; i < 6; i++) {
+    particles.push({
+      x: x + (Math.random() - 0.5) * 20,
+      y: y + (Math.random() - 0.5) * 20,
+      vx: (Math.random() - 0.5) * 2,
+      vy: -Math.random() * 3,
+      color: Math.random() > 0.5 ? COL.hRed : COL.hPink,
+      life: 20 + Math.random() * 15,
+      maxLife: 35,
+      size: PS,
+      sparkle: true,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = p.life / p.maxLife;
+    $.globalAlpha = a;
+    if (p.sparkle && Math.random() > 0.3) {
+      $.fillStyle = COL.white;
+      $.fillRect(p.x - 1, p.y - 1, p.size + 2, p.size + 2);
+    }
+    $.fillStyle = p.color;
+    $.fillRect(p.x, p.y, p.size * a + 1, p.size * a + 1);
+    $.globalAlpha = 1;
+  }
+}
+
+// ==================== SPRITE: PIXEL HEART ====================
+function drawPixelHeart(cx, cy, scale, color, highlight) {
+  for (let r = 0; r < HEART.length; r++) {
+    for (let c = 0; c < HEART[r].length; c++) {
+      if (HEART[r][c]) {
+        $.fillStyle = color;
+        $.fillRect(cx + c * scale, cy + r * scale, scale, scale);
+        if (highlight && r < 2 && (c === 1 || c === 2)) {
+          $.fillStyle = highlight;
+          $.fillRect(cx + c * scale, cy + r * scale, Math.ceil(scale / 2), Math.ceil(scale / 2));
+        }
+      }
+    }
+  }
+}
+
+// ==================== SPRITE: PLAYER BOY ====================
+function drawPlayerSprite(x, y, fr, atkTimer) {
+  const s = PS;
+  const isAtk = atkTimer > 0;
+  const atkProg = isAtk ? 1 - (atkTimer / ATK_DUR) : 0;
+  const onGnd = player && player.onGround;
+  const legOff = onGnd ? Math.floor(Math.sin(fr * 0.35) * 2) * s : 0;
+
+  // HAIR - curly mullet (facing RIGHT)
+  $.fillStyle = COL.hair;
+  // top curls
+  $.fillRect(x+s*1, y-s*3, s*2, s);
+  $.fillRect(x+s*4, y-s*3, s*2, s);
+  // hair mass
+  $.fillRect(x-s*1, y-s*2, s*9, s);
+  $.fillRect(x-s*1, y-s*1, s*9, s);
+  // mullet trailing LEFT (behind when running right)
+  $.fillRect(x-s*2, y, s*2, s*6);
+  $.fillRect(x-s*3, y+s*1, s*1, s*4);
+  $.fillRect(x-s*2, y+s*6, s*1, s*2);
+  // front bangs on RIGHT (shows which way he faces)
+  $.fillRect(x+s*7, y, s*1, s*2);
+  // highlights
+  $.fillStyle = COL.hairH;
+  $.fillRect(x+s*2, y-s*3, s*1, s);
+  $.fillRect(x+s*5, y-s*3, s*1, s);
+  $.fillRect(x-s*2, y+s*1, s*1, s*1);
+
+  // HEAD
+  $.fillStyle = COL.skinBoy;
+  $.fillRect(x, y, s*7, s*6);
+
+  // EYES (looking right - pupils on right side of each eye)
+  $.fillStyle = COL.white;
+  $.fillRect(x+s*2, y+s*2, s*2, s*2);
+  $.fillRect(x+s*5, y+s*2, s*2, s*2);
+  $.fillStyle = COL.hair;
+  $.fillRect(x+s*3, y+s*2, s*1, s*2);
+  $.fillRect(x+s*6, y+s*2, s*1, s*2);
+
+  // MOUTH (slightly right of center)
+  $.fillStyle = COL.skinBoyS;
+  $.fillRect(x+s*3, y+s*5, s*3, s*1);
+
+  // BODY
+  $.fillStyle = COL.shirt;
+  $.fillRect(x, y+s*6, s*7, s*4);
+  $.fillStyle = COL.shirtD;
+  $.fillRect(x, y+s*6, s*7, s*1);
+
+  // ARMS
+  if (isAtk) {
+    // back arm (left, behind character)
+    $.fillStyle = COL.shirtD;
+    $.fillRect(x-s*1, y+s*7, s*2, s*3);
+    $.fillStyle = COL.skinBoyS;
+    $.fillRect(x-s*1, y+s*10, s*2, s*1);
+    // front arm raised for sword (right side)
+    $.fillStyle = COL.shirt;
+    $.fillRect(x+s*7, y+s*5, s*2, s*3);
+    $.fillStyle = COL.skinBoy;
+    $.fillRect(x+s*7, y+s*4, s*2, s*1);
+    // SWORD
+    drawSword(x + s*8, y + s*3, atkProg);
+  } else {
+    // back arm (left, slightly darker)
+    $.fillStyle = COL.shirtD;
+    $.fillRect(x-s*1, y+s*7, s*2, s*3);
+    $.fillStyle = COL.skinBoyS;
+    $.fillRect(x-s*1, y+s*10, s*2, s*1);
+    // front arm (right)
+    $.fillStyle = COL.shirt;
+    $.fillRect(x+s*7, y+s*7, s*2, s*3);
+    $.fillStyle = COL.skinBoy;
+    $.fillRect(x+s*7, y+s*10, s*2, s*1);
+  }
+
+  // PANTS
+  $.fillStyle = COL.pants;
+  $.fillRect(x, y+s*10, s*7, s*3);
+
+  // LEGS
+  $.fillStyle = COL.pants;
+  $.fillRect(x+s*1+legOff, y+s*13, s*2, s*2);
+  $.fillRect(x+s*4-legOff, y+s*13, s*2, s*2);
+
+  // SHOES (toes point right)
+  $.fillStyle = COL.shoes;
+  $.fillRect(x+s*1+legOff, y+s*15, s*3, s*1);
+  $.fillRect(x+s*4-legOff, y+s*15, s*3, s*1);
+}
+
+function drawSword(cx, cy, prog) {
+  const s = PS;
+  const angle = -Math.PI * 0.7 + prog * Math.PI * 1.1;
+  $.save();
+  $.translate(cx, cy);
+  $.rotate(angle);
+  // handle
+  $.fillStyle = '#8D6E63';
+  $.fillRect(-s*0.5, 0, s, s*2);
+  // guard
+  $.fillStyle = '#FDD835';
+  $.fillRect(-s*1.5, -s*0.5, s*3, s);
+  // blade
+  $.fillStyle = '#B0BEC5';
+  $.fillRect(-s*0.5, -s*6, s, s*6);
+  // tip
+  $.fillStyle = '#ECEFF1';
+  $.fillRect(-s*0.5, -s*7, s, s);
+  $.restore();
+}
+
+// ==================== SPRITE: VALENTINE GIRL ====================
+function drawGirlSprite(x, y, fr) {
+  const s = PS;
+  const legOff = Math.floor(Math.sin(fr * 0.15) * 1) * s;
+
+  // LONG BLACK HAIR
+  $.fillStyle = COL.gHair;
+  $.fillRect(x+s*1, y-s*3, s*6, s*2);
+  $.fillRect(x+s*0, y-s*1, s*8, s*1);
+  // side hair long
+  $.fillRect(x-s*1, y, s*2, s*14);
+  $.fillRect(x+s*7, y, s*2, s*14);
+  // back
+  $.fillRect(x+s*1, y+s*6, s*6, s*1);
+
+  // HEAD
+  $.fillStyle = COL.skinGirl;
+  $.fillRect(x+s*1, y, s*6, s*6);
+
+  // EYES with lashes
+  $.fillStyle = COL.gHair;
+  $.fillRect(x+s*2, y+s*1, s*2, s*1); // lash
+  $.fillRect(x+s*5, y+s*1, s*2, s*1); // lash
+  $.fillStyle = COL.white;
+  $.fillRect(x+s*2, y+s*2, s*2, s*2);
+  $.fillRect(x+s*5, y+s*2, s*2, s*2);
+  $.fillStyle = COL.gHair;
+  $.fillRect(x+s*3, y+s*2, s*1, s*2);
+  $.fillRect(x+s*6, y+s*2, s*1, s*2);
+
+  // BLUSH
+  $.fillStyle = '#FFB6C1';
+  $.fillRect(x+s*1, y+s*4, s*1, s*1);
+  $.fillRect(x+s*6, y+s*4, s*1, s*1);
+
+  // SMILE
+  $.fillStyle = '#E88B7A';
+  $.fillRect(x+s*3, y+s*5, s*2, s*1);
+
+  // BODY (blue long sleeve)
+  $.fillStyle = COL.gShirt;
+  $.fillRect(x+s*1, y+s*6, s*6, s*4);
+  $.fillStyle = COL.gShirtD;
+  $.fillRect(x+s*1, y+s*6, s*6, s*1);
+
+  // ARMS (long sleeves)
+  $.fillStyle = COL.gShirt;
+  $.fillRect(x-s*1, y+s*7, s*2, s*3);
+  $.fillRect(x+s*7, y+s*7, s*2, s*3);
+  $.fillStyle = COL.skinGirl;
+  $.fillRect(x-s*1, y+s*10, s*2, s*1);
+  $.fillRect(x+s*7, y+s*10, s*2, s*1);
+
+  // PANTS
+  $.fillStyle = COL.gPants;
+  $.fillRect(x+s*1, y+s*10, s*6, s*3);
+
+  // LEGS
+  $.fillRect(x+s*1+legOff, y+s*13, s*2, s*2);
+  $.fillRect(x+s*4-legOff, y+s*13, s*2, s*2);
+
+  // SHOES
+  $.fillStyle = COL.gShoes;
+  $.fillRect(x+s*0+legOff, y+s*15, s*3, s*1);
+  $.fillRect(x+s*3-legOff, y+s*15, s*3, s*1);
+}
+
+// ==================== SPRITE: HUG POSE ====================
+function drawHugPose(x, y, fr) {
+  const s = PS;
+  // Boy on left, girl on right, close together
+  const bx = x - s * 5;
+  const gx = x + s * 1;
+
+  // BOY (facing right toward girl)
+  // Hair
+  $.fillStyle = COL.hair;
+  $.fillRect(bx+s*1, y-s*3, s*2, s);
+  $.fillRect(bx+s*4, y-s*3, s*2, s);
+  $.fillRect(bx+s*0, y-s*2, s*8, s*2);
+  // mullet trailing left
+  $.fillRect(bx-s*2, y, s*2, s*6);
+  // Head
+  $.fillStyle = COL.skinBoy;
+  $.fillRect(bx, y, s*7, s*6);
+  // Eyes (happy - closed)
+  $.fillStyle = COL.hair;
+  $.fillRect(bx+s*1, y+s*3, s*2, s*1);
+  $.fillRect(bx+s*4, y+s*3, s*2, s*1);
+  // Smile
+  $.fillStyle = COL.skinBoyS;
+  $.fillRect(bx+s*2, y+s*5, s*3, s*1);
+  // Body
+  $.fillStyle = COL.shirt;
+  $.fillRect(bx, y+s*6, s*7, s*4);
+  // Arms (reaching around girl)
+  $.fillStyle = COL.shirt;
+  $.fillRect(bx+s*7, y+s*7, s*6, s*2);
+  $.fillStyle = COL.skinBoy;
+  $.fillRect(bx+s*12, y+s*7, s*1, s*2);
+  // Left arm
+  $.fillStyle = COL.shirt;
+  $.fillRect(bx-s*2, y+s*7, s*2, s*3);
+  // Pants & legs
+  $.fillStyle = COL.pants;
+  $.fillRect(bx, y+s*10, s*7, s*3);
+  $.fillRect(bx+s*1, y+s*13, s*2, s*2);
+  $.fillRect(bx+s*4, y+s*13, s*2, s*2);
+  $.fillStyle = COL.shoes;
+  $.fillRect(bx+s*0, y+s*15, s*3, s*1);
+  $.fillRect(bx+s*3, y+s*15, s*3, s*1);
+
+  // GIRL
+  // Hair
+  $.fillStyle = COL.gHair;
+  $.fillRect(gx+s*1, y-s*3, s*6, s*2);
+  $.fillRect(gx+s*0, y-s*1, s*8, s*1);
+  $.fillRect(gx-s*1, y, s*2, s*14);
+  $.fillRect(gx+s*7, y, s*2, s*14);
+  $.fillRect(gx+s*1, y+s*6, s*6, s*1);
+  // Head
+  $.fillStyle = COL.skinGirl;
+  $.fillRect(gx+s*1, y, s*6, s*6);
+  // Eyes (happy closed)
+  $.fillStyle = COL.gHair;
+  $.fillRect(gx+s*2, y+s*3, s*2, s*1);
+  $.fillRect(gx+s*5, y+s*3, s*2, s*1);
+  // Blush
+  $.fillStyle = '#FFB6C1';
+  $.fillRect(gx+s*1, y+s*4, s*1, s*1);
+  $.fillRect(gx+s*6, y+s*4, s*1, s*1);
+  // Smile
+  $.fillStyle = '#E88B7A';
+  $.fillRect(gx+s*3, y+s*5, s*2, s*1);
+  // Body
+  $.fillStyle = COL.gShirt;
+  $.fillRect(gx+s*1, y+s*6, s*6, s*4);
+  // Arms (reaching around boy)
+  $.fillStyle = COL.gShirt;
+  $.fillRect(gx-s*5, y+s*7, s*6, s*2);
+  $.fillStyle = COL.skinGirl;
+  $.fillRect(gx-s*5, y+s*7, s*1, s*2);
+  // Right arm
+  $.fillStyle = COL.gShirt;
+  $.fillRect(gx+s*7, y+s*7, s*2, s*3);
+  // Pants & legs
+  $.fillStyle = COL.gPants;
+  $.fillRect(gx+s*1, y+s*10, s*6, s*3);
+  $.fillRect(gx+s*1, y+s*13, s*2, s*2);
+  $.fillRect(gx+s*4, y+s*13, s*2, s*2);
+  $.fillStyle = COL.gShoes;
+  $.fillRect(gx+s*0, y+s*15, s*3, s*1);
+  $.fillRect(gx+s*3, y+s*15, s*3, s*1);
+
+  // Hearts floating above
+  const t = fr * 0.05;
+  for (let i = 0; i < 3; i++) {
+    const hx = x - 15 + i * 15 + Math.sin(t + i * 2) * 5;
+    const hy = y - s * 8 - i * 10 + Math.sin(t * 1.5 + i) * 3;
+    const a = 0.5 + Math.sin(t + i) * 0.3;
+    $.globalAlpha = a;
+    drawPixelHeart(hx, hy, 2, COL.hRed, COL.hPink);
+    $.globalAlpha = 1;
+  }
+}
+
+// ==================== SPRITE: HEART SLIME ====================
+function drawSlime(x, y, fr) {
+  const s = PS;
+  const bounce = Math.sin(fr * 0.15) * 2;
+  const squashX = 1 + bounce * 0.03;
+  const squashY = 1 - bounce * 0.03;
+
+  $.save();
+  $.translate(x + s * 4, y + s * 7);
+  $.scale(squashX, squashY);
+  $.translate(-(x + s * 4), -(y + s * 7));
+
+  // Body
+  $.fillStyle = COL.slime;
+  $.fillRect(x+s*1, y+s*2, s*6, s*5);
+  $.fillRect(x+s*0, y+s*3, s*8, s*3);
+  $.fillRect(x+s*2, y+s*1, s*4, s*1);
+  // Highlight
+  $.fillStyle = COL.slimeH;
+  $.fillRect(x+s*1, y+s*2, s*2, s*2);
+  // Dark bottom
+  $.fillStyle = COL.slimeD;
+  $.fillRect(x+s*0, y+s*5, s*8, s*2);
+  // Eyes
+  $.fillStyle = COL.white;
+  $.fillRect(x+s*2, y+s*3, s*2, s*2);
+  $.fillRect(x+s*5, y+s*3, s*2, s*2);
+  $.fillStyle = COL.black;
+  $.fillRect(x+s*3, y+s*3, s*1, s*2);
+  $.fillRect(x+s*6, y+s*3, s*1, s*2);
+  // Heart on top
+  drawPixelHeart(x + s * 1.5, y - s * 1, s * 0.8, COL.hRed);
+
+  $.restore();
+}
+
+// ==================== SPRITE: CUPID BAT ====================
+function drawBat(x, y, fr) {
+  const s = PS;
+  const wingUp = Math.sin(fr * 0.3) > 0;
+
+  // Body
+  $.fillStyle = COL.bat;
+  $.fillRect(x+s*3, y+s*2, s*4, s*4);
+  $.fillRect(x+s*4, y+s*1, s*2, s*1);
+  // Wings
+  $.fillStyle = COL.batW;
+  if (wingUp) {
+    $.fillRect(x, y, s*3, s*3);
+    $.fillRect(x+s*7, y, s*3, s*3);
+    $.fillStyle = COL.batD;
+    $.fillRect(x, y+s*2, s*3, s*1);
+    $.fillRect(x+s*7, y+s*2, s*3, s*1);
+  } else {
+    $.fillRect(x, y+s*3, s*3, s*3);
+    $.fillRect(x+s*7, y+s*3, s*3, s*3);
+    $.fillStyle = COL.batD;
+    $.fillRect(x, y+s*3, s*3, s*1);
+    $.fillRect(x+s*7, y+s*3, s*3, s*1);
+  }
+  // Eyes
+  $.fillStyle = COL.white;
+  $.fillRect(x+s*3, y+s*2, s*2, s*2);
+  $.fillRect(x+s*6, y+s*2, s*2, s*2);
+  $.fillStyle = COL.hRed;
+  $.fillRect(x+s*4, y+s*2, s*1, s*2);
+  $.fillRect(x+s*7, y+s*2, s*1, s*2);
+  // Little fangs
+  $.fillStyle = COL.white;
+  $.fillRect(x+s*4, y+s*5, s*1, s*1);
+  $.fillRect(x+s*6, y+s*5, s*1, s*1);
+}
+
+// ==================== SPRITE: LOVE ZOMBIE ====================
+function drawZombie(x, y, fr) {
+  const s = PS;
+  const sway = Math.sin(fr * 0.08) * s;
+
+  // Head
+  $.fillStyle = COL.zombie;
+  $.fillRect(x+s*1, y, s*6, s*5);
+  // Hair (messy)
+  $.fillStyle = COL.zombieD;
+  $.fillRect(x+s*0, y-s*1, s*3, s*2);
+  $.fillRect(x+s*5, y-s*1, s*3, s*2);
+  // Heart eyes
+  drawPixelHeart(x + s*1, y + s*1, s*0.5, COL.hRed);
+  drawPixelHeart(x + s*4, y + s*1, s*0.5, COL.hRed);
+  // Mouth
+  $.fillStyle = COL.zombieD;
+  $.fillRect(x+s*2, y+s*4, s*4, s*1);
+
+  // Body (ragged shirt)
+  $.fillStyle = COL.zombieS;
+  $.fillRect(x+s*1, y+s*5, s*6, s*5);
+  $.fillStyle = '#6D4C41';
+  $.fillRect(x+s*1, y+s*5, s*6, s*1);
+  // Arms (reaching forward)
+  $.fillStyle = COL.zombie;
+  $.fillRect(x+s*7, y+s*5+sway, s*3, s*2);
+  $.fillRect(x-s*2, y+s*6-sway, s*3, s*2);
+
+  // Pants
+  $.fillStyle = '#455A64';
+  $.fillRect(x+s*1, y+s*10, s*6, s*3);
+
+  // Legs (shuffling)
+  const legOff = Math.floor(Math.sin(fr * 0.1) * 1) * s;
+  $.fillRect(x+s*1+legOff, y+s*13, s*2, s*2);
+  $.fillRect(x+s*5-legOff, y+s*13, s*2, s*2);
+  $.fillStyle = '#37474F';
+  $.fillRect(x+s*0+legOff, y+s*15, s*3, s*1);
+  $.fillRect(x+s*4-legOff, y+s*15, s*3, s*1);
+}
+
+// ==================== SPRITE: HEART GEM ====================
+function drawGem(x, y, fr) {
+  const bob = Math.sin(fr * 0.08) * 4;
+  const glow = 0.3 + Math.sin(fr * 0.12) * 0.15;
+
+  // Glow
+  $.globalAlpha = glow;
+  $.fillStyle = COL.hPink;
+  $.beginPath();
+  $.arc(x + px(3.5), y + bob + px(3), px(5), 0, Math.PI * 2);
+  $.fill();
+  $.globalAlpha = 1;
+
+  // Heart
+  drawPixelHeart(x, y + bob, PS, COL.hRed, COL.hPink);
+
+  // Sparkle
+  if (Math.random() > 0.85) {
+    $.fillStyle = COL.white;
+    const sx = x + Math.random() * px(7);
+    const sy = y + bob + Math.random() * px(6);
+    $.fillRect(sx, sy, 2, 2);
+  }
+}
+
+// ==================== ENVIRONMENT ====================
+function drawSky() {
+  const grad = $.createLinearGradient(0, 0, 0, GY);
+  grad.addColorStop(0, '#87CEEB');
+  grad.addColorStop(0.6, '#B5D8F7');
+  grad.addColorStop(1, '#FFB6C1');
+  $.fillStyle = grad;
+  $.fillRect(0, 0, W, GY);
+
+  // Simple clouds
+  $.fillStyle = 'rgba(255,255,255,0.4)';
+  for (let i = 0; i < 4; i++) {
+    const cx = ((i * 250 + 100 - scroll * 0.3) % (W + 100)) - 50;
+    const cy = 40 + i * 30;
+    $.fillRect(cx, cy, 80, 12);
+    $.fillRect(cx + 10, cy - 8, 60, 10);
+    $.fillRect(cx + 20, cy - 14, 40, 8);
+  }
+}
+
+function drawGround() {
+  const tw = TILE;
+  const tilesAcross = Math.ceil(W / tw) + 2;
+  const offset = scroll % tw;
+
+  for (let col = 0; col < tilesAcross; col++) {
+    const tx = col * tw - offset;
+    const tileIdx = Math.floor(scroll / tw) + col;
+
+    // Grass top layer
+    $.fillStyle = COL.grass;
+    $.fillRect(tx, GY, tw, PS * 2);
+    $.fillStyle = COL.grassH;
+    // grass blades
+    for (let b = 0; b < 3; b++) {
+      const bx = tx + rng(tileIdx * 3 + b) * tw;
+      $.fillRect(bx, GY - PS, PS, PS);
+    }
+
+    // Dirt tiles
+    for (let row = 0; row < 4; row++) {
+      const dy = GY + PS * 2 + row * tw;
+      $.fillStyle = (row === 0) ? COL.dirt : COL.dirtD;
+      $.fillRect(tx, dy, tw, tw);
+
+      // Texture
+      $.fillStyle = COL.dirtH;
+      const seed = tileIdx * 10 + row;
+      if (rng(seed) > 0.5) $.fillRect(tx + PS * 2, dy + PS * 2, PS, PS);
+      if (rng(seed + 1) > 0.5) $.fillRect(tx + PS * 5, dy + PS * 4, PS, PS);
+      if (rng(seed + 2) > 0.6) $.fillRect(tx + PS * 1, dy + PS * 6, PS, PS);
+
+      // Grid lines
+      $.fillStyle = 'rgba(0,0,0,0.1)';
+      $.fillRect(tx, dy, tw, 1);
+      $.fillRect(tx, dy, 1, tw);
+    }
+  }
+}
+
+// ==================== UI: HEART METER ====================
+function drawHeartMeter() {
+  const mx = 20, my = 20;
+  const sc = 7;
+  const hw = 7 * sc, hh = 6 * sc;
+  const fillRatio = gems / MAXG;
+
+  // Pulse effect
+  const pulse = meterPulse > 0 ? Math.sin(meterPulse * 0.5) * 3 : 0;
+  const finalSc = sc + pulse * 0.3;
+
+  // Draw empty heart
+  drawPixelHeart(mx, my, finalSc, COL.hEmpty);
+
+  // Draw filled portion (bottom up)
+  if (fillRatio > 0) {
+    $.save();
+    const fillH = hh * fillRatio;
+    $.beginPath();
+    $.rect(mx - 5, my + hh - fillH, hw + 10, fillH + 5);
+    $.clip();
+    drawPixelHeart(mx, my, finalSc, COL.hRed, COL.hPink);
+    $.restore();
+  }
+
+  // Outline
+  drawPixelHeart(mx - 1, my - 1, finalSc, 'transparent');
+  // Actually draw outline by stroking
+  $.strokeStyle = COL.hOutline;
+  $.lineWidth = 2;
+  // Simple outline approach: draw slightly larger behind
+  for (let r = 0; r < HEART.length; r++) {
+    for (let c = 0; c < HEART[r].length; c++) {
+      if (!HEART[r][c]) continue;
+      const px = mx + c * finalSc;
+      const py = my + r * finalSc;
+      // Check edges
+      if (c === 0 || !HEART[r][c-1]) $.fillStyle = COL.hOutline, $.fillRect(px-1, py, 1, finalSc);
+      if (c === 6 || !HEART[r][c+1]) $.fillStyle = COL.hOutline, $.fillRect(px+finalSc, py, 1, finalSc);
+      if (r === 0 || !HEART[r-1]?.[c]) $.fillStyle = COL.hOutline, $.fillRect(px, py-1, finalSc, 1);
+      if (r === 5 || !HEART[r+1]?.[c]) $.fillStyle = COL.hOutline, $.fillRect(px, py+finalSc, finalSc, 1);
+    }
+  }
+
+  // Counter text
+  drawText(`${gems}/${MAXG}`, mx + hw / 2, my + hh + 14, 16, COL.white);
+
+  if (meterPulse > 0) meterPulse--;
+}
+
+// ==================== GAME ENTITIES ====================
+function createPlayer() {
+  return {
+    x: 100, y: GY - PH,
+    vy: 0, onGround: true,
+    frame: 0,
+    atkTimer: 0, atkCooldown: 0,
+    alive: true,
+    invincible: 0,
+  };
+}
+
+function spawnEnemy() {
+  const types = ['slime'];
+  if (gems >= 5) types.push('bat');
+  if (gems >= 12) types.push('zombie');
+  const type = types[Math.floor(Math.random() * types.length)];
+
+  switch (type) {
+    case 'slime':
+      enemies.push({
+        type: 'slime', x: W + 20, y: GY - 7 * PS,
+        w: 8 * PS, h: 7 * PS, frame: 0,
+        vy: -5, bounceTimer: 0,
+      });
+      break;
+    case 'bat':
+      const batY = 100 + Math.random() * 120;
+      enemies.push({
+        type: 'bat', x: W + 20, y: batY, baseY: batY,
+        w: 10 * PS, h: 6 * PS, frame: 0, time: 0,
+      });
+      break;
+    case 'zombie':
+      enemies.push({
+        type: 'zombie', x: W + 20, y: GY - 16 * PS,
+        w: 8 * PS, h: 16 * PS, frame: 0,
+        speed: 0.5,
+      });
+      break;
+  }
+}
+
+function spawnGem() {
+  const inAir = Math.random() > 0.4;
+  const gy = inAir ? GY - PH - 30 - Math.random() * 60 : GY - 8 * PS;
+  heartGems.push({
+    x: W + 20, y: gy,
+    w: 7 * PS, h: 6 * PS,
+    frame: Math.random() * 100,
+  });
+}
+
+// ==================== GAME LOGIC ====================
+function startGame() {
+  state = 'playing';
+  speed = 3;
+  scroll = 0;
+  gems = 0;
+  frame = 0;
+  shakeX = 0; shakeY = 0; shakeDur = 0;
+  winTimer = 0;
+  deathTimer = 0;
+  meterPulse = 0;
+  player = createPlayer();
+  enemies = [];
+  heartGems = [];
+  particles = [];
+  enemyTimer = 90;
+  gemTimer = 60;
+  showMobileControls(true);
+  hideAllOverlays();
+}
+
+function triggerDeath() {
+  state = 'dying';
+  deathTimer = 60;
+  shakeDur = 15;
+  showMobileControls(false);
+  spawnParticles(player.x + px(4), player.y + px(8), COL.hRed, 15, 6, 40);
+  spawnParticles(player.x + px(4), player.y + px(8), COL.shirt, 10, 5, 35);
+}
+
+function triggerWin() {
+  state = 'cutscene';
+  winTimer = 0;
+  speed = 0;
+  showMobileControls(false);
+}
+
+function updatePlaying() {
+  frame++;
+  scroll += speed;
+  speed = 3 + gems * 0.08;
+
+  // Player jump
+  if (jumpBtn && player.onGround) {
+    player.vy = JVEL;
+    player.onGround = false;
+  }
+  jumpBtn = false;
+
+  // Player attack
+  if (atkBtn && player.atkTimer <= 0 && player.atkCooldown <= 0) {
+    player.atkTimer = ATK_DUR;
+  }
+  atkBtn = false;
+
+  // Player physics
+  if (!player.onGround) {
+    player.vy += GRAV;
+    player.y += player.vy;
+    if (player.y >= GY - PH) {
+      player.y = GY - PH;
+      player.vy = 0;
+      player.onGround = true;
+    }
+  }
+
+  // Attack timer
+  if (player.atkTimer > 0) {
+    player.atkTimer--;
+    if (player.atkTimer <= 0) player.atkCooldown = ATK_CD;
+  }
+  if (player.atkCooldown > 0) player.atkCooldown--;
+
+  player.frame = frame;
+
+  // Spawn enemies
+  enemyTimer--;
+  if (enemyTimer <= 0) {
+    spawnEnemy();
+    const minT = Math.max(40, 100 - gems * 3);
+    const maxT = minT + 50;
+    enemyTimer = minT + Math.random() * (maxT - minT);
+  }
+
+  // Spawn gems
+  gemTimer--;
+  if (gemTimer <= 0 && gems < MAXG) {
+    spawnGem();
+    gemTimer = 80 + Math.random() * 60;
+  }
+
+  // Update enemies
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.frame++;
+    e.x -= speed;
+
+    if (e.type === 'slime') {
+      e.bounceTimer++;
+      if (e.bounceTimer > 30) {
+        e.y += e.vy;
+        e.vy += 0.5;
+        if (e.y >= GY - e.h) {
+          e.y = GY - e.h;
+          e.vy = -6 - Math.random() * 2;
+          e.bounceTimer = 0;
+        }
+      }
+    } else if (e.type === 'bat') {
+      e.time++;
+      e.y = e.baseY + Math.sin(e.time * 0.06) * 30;
+    } else if (e.type === 'zombie') {
+      e.x -= e.speed;
+    }
+
+    if (e.x < -50) enemies.splice(i, 1);
+  }
+
+  // Update gems
+  for (let i = heartGems.length - 1; i >= 0; i--) {
+    const g = heartGems[i];
+    g.frame++;
+    g.x -= speed;
+    if (g.x < -50) heartGems.splice(i, 1);
+  }
+
+  // Collision: player hitbox
+  const pBox = { x: player.x + PS, y: player.y, w: 7 * PS, h: PH };
+
+  // Sword hitbox (when attacking, frames 12-4)
+  const swordActive = player.atkTimer > 4 && player.atkTimer < ATK_DUR - 4;
+  const sBox = swordActive ? {
+    x: player.x + 8 * PS, y: player.y - PS, w: 12 * PS, h: 14 * PS,
+  } : null;
+
+  // Check enemy collisions
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    const eBox = { x: e.x, y: e.y, w: e.w, h: e.h };
+
+    // Sword kills enemy
+    if (sBox && aabb(sBox, eBox)) {
+      spawnParticles(e.x + e.w/2, e.y + e.h/2, COL.hPink, 12, 5, 25);
+      spawnParticles(e.x + e.w/2, e.y + e.h/2, COL.white, 5, 3, 20);
+      enemies.splice(i, 1);
+      continue;
+    }
+
+    // Enemy hits player
+    if (aabb(pBox, eBox)) {
+      triggerDeath();
+      return;
+    }
+  }
+
+  // Check gem collisions
+  for (let i = heartGems.length - 1; i >= 0; i--) {
+    const g = heartGems[i];
+    const bob = Math.sin(g.frame * 0.08) * 4;
+    const gBox = { x: g.x, y: g.y + bob, w: g.w, h: g.h };
+
+    if (aabb(pBox, gBox)) {
+      gems++;
+      meterPulse = 20;
+      spawnSparkle(g.x + g.w/2, g.y + bob);
+      heartGems.splice(i, 1);
+
+      if (gems >= MAXG) {
+        triggerWin();
+        return;
+      }
+    }
+  }
+
+  // Screen shake
+  if (shakeDur > 0) {
+    shakeX = (Math.random() - 0.5) * 8;
+    shakeY = (Math.random() - 0.5) * 8;
+    shakeDur--;
+  } else {
+    shakeX = 0; shakeY = 0;
+  }
+}
+
+function updateDying() {
+  deathTimer--;
+  frame++;
+  if (shakeDur > 0) {
+    shakeX = (Math.random() - 0.5) * 8;
+    shakeY = (Math.random() - 0.5) * 8;
+    shakeDur--;
+  } else {
+    shakeX = 0; shakeY = 0;
+  }
+  if (deathTimer <= 0) {
+    state = 'gameover';
+  }
+}
+
+function updateCutscene() {
+  winTimer++;
+  frame++;
+
+  // Floating particles during cutscene
+  if (winTimer > 60 && Math.random() > 0.7) {
+    particles.push({
+      x: Math.random() * W,
+      y: H + 10,
+      vx: (Math.random() - 0.5) * 1,
+      vy: -1 - Math.random() * 2,
+      color: Math.random() > 0.5 ? COL.hRed : COL.hPink,
+      life: 100 + Math.random() * 60,
+      maxLife: 160,
+      size: PS * (1 + Math.random() * 2),
+    });
+  }
+}
+
+// ==================== RENDERING ====================
+function renderTitle() {
+  drawSky();
+  drawGround();
+
+  // Floating hearts background
+  for (let i = 0; i < 5; i++) {
+    const t = frame * 0.02 + i * 1.5;
+    const hx = W * 0.15 + i * W * 0.18 + Math.sin(t) * 20;
+    const hy = 60 + Math.sin(t * 0.7 + i) * 30;
+    $.globalAlpha = 0.2 + Math.sin(t) * 0.1;
+    drawPixelHeart(hx, hy, 4, COL.hRed, COL.hPink);
+    $.globalAlpha = 1;
+  }
+
+  // Player standing
+  drawPlayerSprite(W/2 - 80, GY - PH, frame, 0);
+  // Girl standing
+  drawGirlSprite(W/2 + 50, GY - PH, 0);
+
+  // A heart between them
+  const heartBob = Math.sin(frame * 0.05) * 5;
+  drawPixelHeart(W/2 - 10, GY - PH - 25 + heartBob, 4, COL.hRed, COL.hPink);
+
+  // Title
+  drawTextOutline('TERRARIA', W/2, 80, 42, '#FF6B9D', '#880E4F');
+  drawTextOutline('VALENTINE', W/2, 125, 42, '#FF1744', '#880E4F');
+
+  // Subtitle
+  drawText('Collect 20 hearts to save your valentine!', W/2, 175, 14, '#FFB6C1');
+
+  // Blink
+  titleBlink = (titleBlink + 1) % 80;
+  if (titleBlink < 55) {
+    drawText(isMobile ? 'Tap to start' : 'Press SPACE to start', W/2, 220, 18, COL.white);
+  }
+
+  // Controls
+  if (isMobile) {
+    drawText('Use the buttons to JUMP and ATTACK!', W/2, H - 40, 12, 'rgba(255,255,255,0.6)');
+  } else {
+    drawText('JUMP: Space / W / Up', W/2, H - 50, 12, 'rgba(255,255,255,0.6)');
+    drawText('ATTACK: X / Click', W/2, H - 34, 12, 'rgba(255,255,255,0.6)');
+  }
+}
+
+function renderPlaying() {
+  $.save();
+  $.translate(shakeX, shakeY);
+
+  drawSky();
+  drawGround();
+
+  // Draw gems
+  for (const g of heartGems) {
+    drawGem(g.x, g.y, g.frame);
+  }
+
+  // Draw enemies
+  for (const e of enemies) {
+    if (e.type === 'slime') drawSlime(e.x, e.y, e.frame);
+    else if (e.type === 'bat') drawBat(e.x, e.y, e.frame);
+    else if (e.type === 'zombie') drawZombie(e.x, e.y, e.frame);
+  }
+
+  // Draw player
+  if (player) {
+    drawPlayerSprite(player.x, player.y, player.frame, player.atkTimer);
+  }
+
+  // Particles
+  drawParticles();
+
+  $.restore();
+
+  // UI (not affected by shake)
+  drawHeartMeter();
+}
+
+function renderDying() {
+  $.save();
+  $.translate(shakeX, shakeY);
+
+  drawSky();
+  drawGround();
+
+  // Still show gems and enemies frozen
+  for (const g of heartGems) drawGem(g.x, g.y, g.frame);
+  for (const e of enemies) {
+    if (e.type === 'slime') drawSlime(e.x, e.y, e.frame);
+    else if (e.type === 'bat') drawBat(e.x, e.y, e.frame);
+    else if (e.type === 'zombie') drawZombie(e.x, e.y, e.frame);
+  }
+
+  // Flash player
+  if (player && deathTimer % 6 < 3) {
+    drawPlayerSprite(player.x, player.y, player.frame, 0);
+  }
+
+  drawParticles();
+  $.restore();
+  drawHeartMeter();
+}
+
+function renderGameOver() {
+  drawSky();
+  drawGround();
+  drawParticles();
+
+  // Overlay
+  $.fillStyle = 'rgba(0,0,0,0.5)';
+  $.fillRect(0, 0, W, H);
+
+  drawTextOutline('GAME OVER', W/2, 130, 40, '#FF1744', '#880E4F');
+  drawText(`You collected ${gems}/${MAXG} hearts`, W/2, 185, 18, '#FFB6C1');
+
+  titleBlink = (titleBlink + 1) % 80;
+  if (titleBlink < 55) {
+    drawText(isMobile ? 'Tap to try again' : 'Press SPACE to try again', W/2, 240, 18, COL.white);
+  }
+
+  // Controls reminder
+  if (isMobile) {
+    drawText('Use the buttons to JUMP and ATTACK!', W/2, H - 40, 12, 'rgba(255,255,255,0.6)');
+  } else {
+    drawText('JUMP: Space / W / Up', W/2, H - 50, 12, 'rgba(255,255,255,0.6)');
+    drawText('ATTACK: X / Click', W/2, H - 34, 12, 'rgba(255,255,255,0.6)');
+  }
+}
+
+function renderCutscene() {
+  const t = winTimer;
+
+  // Phase 0 (0-90): Heart meter pulses, game freezes
+  // Phase 1 (90-180): Screen transitions to pink, heart moves to center
+  // Phase 2 (180-300): Heart opens, characters appear
+  // Phase 3 (300-420): Girl walks in, they hug
+  // Phase 4 (420+): Victory message
+
+  if (t < 90) {
+    // Frozen game view with pulsing heart
+    drawSky();
+    drawGround();
+    for (const g of heartGems) drawGem(g.x, g.y, g.frame);
+    for (const e of enemies) {
+      if (e.type === 'slime') drawSlime(e.x, e.y, e.frame);
+      else if (e.type === 'bat') drawBat(e.x, e.y, e.frame);
+      else if (e.type === 'zombie') drawZombie(e.x, e.y, e.frame);
+    }
+    drawPlayerSprite(player.x, player.y, player.frame, 0);
+
+    // Pulsing heart
+    meterPulse = 10;
+    drawHeartMeter();
+  } else if (t < 180) {
+    // Transition to pink background
+    const prog = (t - 90) / 90;
+    const p = easeInOut(prog);
+
+    // Lerp sky to full pink
+    const grad = $.createLinearGradient(0, 0, 0, GY);
+    const r1 = Math.round(lerp(135, 255, p));
+    const g1 = Math.round(lerp(206, 182, p));
+    const b1 = Math.round(lerp(235, 193, p));
+    const r2 = Math.round(lerp(255, 255, p));
+    const g2 = Math.round(lerp(182, 105, p));
+    const b2 = Math.round(lerp(193, 180, p));
+    grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+    grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+    $.fillStyle = grad;
+    $.fillRect(0, 0, W, GY);
+    drawGround();
+
+    // Heart moves from corner to center and grows
+    const startX = 20, startY = 20, startSc = 7;
+    const endX = W/2 - 49, endY = H/2 - 60, endSc = 14;
+    const cx = lerp(startX, endX, p);
+    const cy = lerp(startY, endY, p);
+    const cs = lerp(startSc, endSc, p);
+    drawPixelHeart(cx, cy, cs, COL.hRed, COL.hPink);
+
+    // Counter
+    drawText(`${MAXG}/${MAXG}`, cx + 7 * cs / 2, cy + 6 * cs + 16, 16, COL.white);
+  } else if (t < 300) {
+    // Heart bursts, scene changes
+    const prog = (t - 180) / 120;
+    const p = easeOut(prog);
+
+    // Pink sky
+    const grad = $.createLinearGradient(0, 0, 0, GY);
+    grad.addColorStop(0, '#FFB6C1');
+    grad.addColorStop(1, '#FF69B4');
+    $.fillStyle = grad;
+    $.fillRect(0, 0, W, GY);
+    drawGround();
+
+    // Heart fades and bursts
+    if (prog < 0.3) {
+      const alpha = 1 - prog / 0.3;
+      $.globalAlpha = alpha;
+      const scale = 14 + prog * 20;
+      drawPixelHeart(W/2 - 49, H/2 - 60, scale, COL.hRed, COL.hPink);
+      $.globalAlpha = 1;
+    }
+
+    // Burst particles
+    if (t === 180) {
+      for (let i = 0; i < 30; i++) {
+        particles.push({
+          x: W/2, y: H/2 - 30,
+          vx: (Math.random() - 0.5) * 12,
+          vy: (Math.random() - 0.5) * 12,
+          color: [COL.hRed, COL.hPink, COL.white, '#FFD700'][Math.floor(Math.random()*4)],
+          life: 60 + Math.random() * 40,
+          maxLife: 100,
+          size: PS * (2 + Math.random() * 2),
+        });
+      }
+    }
+
+    // Player walks to center
+    const playerTargetX = W/2 - 40;
+    const playerX = lerp(player.x, playerTargetX, p);
+    drawPlayerSprite(playerX, GY - PH, frame, 0);
+
+    drawParticles();
+  } else if (t < 420) {
+    // Girl walks in from right
+    const prog = (t - 300) / 120;
+    const p = easeOut(prog);
+
+    // Pink sky
+    const grad = $.createLinearGradient(0, 0, 0, GY);
+    grad.addColorStop(0, '#FFB6C1');
+    grad.addColorStop(1, '#FF69B4');
+    $.fillStyle = grad;
+    $.fillRect(0, 0, W, GY);
+    drawGround();
+
+    // Player at center
+    drawPlayerSprite(W/2 - 40, GY - PH, frame, 0);
+
+    // Girl walks in
+    const girlX = lerp(W + 30, W/2 + 10, p);
+    drawGirlSprite(girlX, GY - PH, frame);
+
+    drawParticles();
+  } else if (t < 480) {
+    // They move closer together
+    const prog = (t - 420) / 60;
+    const p = easeInOut(prog);
+
+    const grad = $.createLinearGradient(0, 0, 0, GY);
+    grad.addColorStop(0, '#FFB6C1');
+    grad.addColorStop(1, '#FF69B4');
+    $.fillStyle = grad;
+    $.fillRect(0, 0, W, GY);
+    drawGround();
+
+    // Move towards each other
+    const bx = lerp(W/2 - 40, W/2 - 20, p);
+    const gx = lerp(W/2 + 10, W/2 + 5, p);
+    drawPlayerSprite(bx, GY - PH, frame, 0);
+    drawGirlSprite(gx, GY - PH, frame);
+
+    drawParticles();
+  } else {
+    // HUG POSE + MESSAGE
+    const grad = $.createLinearGradient(0, 0, 0, GY);
+    grad.addColorStop(0, '#FFB6C1');
+    grad.addColorStop(1, '#FF69B4');
+    $.fillStyle = grad;
+    $.fillRect(0, 0, W, GY);
+    drawGround();
+
+    // Draw hug
+    drawHugPose(W/2 - 5, GY - PH, frame);
+
+    drawParticles();
+
+    // Text fades in
+    const textProg = Math.min(1, (t - 480) / 60);
+    $.globalAlpha = textProg;
+
+    drawTextOutline('You saved your valentine!', W/2, 80, 28, '#FFFFFF', '#880E4F');
+    drawTextOutline('Happy Valentines Day!', W/2, 120, 32, '#FFD700', '#880E4F');
+
+    $.globalAlpha = 1;
+
+    // Show victory options (after delay)
+    if (t > 560) {
+      state = 'victory';
+      showVictoryOptions();
+    }
+  }
+}
+
+function renderVictory() {
+  frame++;
+
+  const grad = $.createLinearGradient(0, 0, 0, GY);
+  grad.addColorStop(0, '#FFB6C1');
+  grad.addColorStop(1, '#FF69B4');
+  $.fillStyle = grad;
+  $.fillRect(0, 0, W, GY);
+  drawGround();
+
+  drawHugPose(W/2 - 5, GY - PH, frame);
+
+  // Floating heart particles
+  if (Math.random() > 0.6) {
+    particles.push({
+      x: Math.random() * W,
+      y: H + 10,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: -0.8 - Math.random() * 1.5,
+      color: Math.random() > 0.5 ? COL.hRed : COL.hPink,
+      life: 120 + Math.random() * 60,
+      maxLife: 180,
+      size: PS * (1 + Math.random() * 2),
+    });
+  }
+
+  drawParticles();
+
+  drawTextOutline('You saved your valentine!', W/2, 80, 28, '#FFFFFF', '#880E4F');
+  drawTextOutline('Happy Valentines Day!', W/2, 120, 32, '#FFD700', '#880E4F');
+
+  // Victory options handled by HTML buttons
+}
+
+// ==================== MAIN LOOP ====================
+function update() {
+  switch (state) {
+    case 'title': frame++; break;
+    case 'playing': updatePlaying(); break;
+    case 'dying': updateDying(); break;
+    case 'gameover': break;
+    case 'cutscene': updateCutscene(); break;
+    case 'victory': break;
+  }
+  updateParticles();
+}
+
+function render() {
+  $.clearRect(0, 0, W, H);
+
+  switch (state) {
+    case 'title': renderTitle(); break;
+    case 'playing': renderPlaying(); break;
+    case 'dying': renderDying(); break;
+    case 'gameover': renderGameOver(); break;
+    case 'cutscene': renderCutscene(); break;
+    case 'victory': renderVictory(); break;
+  }
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// Start!
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
